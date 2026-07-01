@@ -1,0 +1,23 @@
+{
+  "name": "Globant",
+  "dockerComposeFile": [
+    "../docker-compose.yml"
+  ],
+  "service": "develop",
+  "workspaceFolder": "/workspace",
+  "forwardPorts": [8000, 5432, 6379],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "cweijan.vscode-database-client2"
+      ]
+    }
+  },
+  "containerEnv": {
+    "PYTHONUNBUFFERED": "True",
+    "UV_LINK_MODE": "copy"
+  },
+  "remoteUser": "vscode"
+}

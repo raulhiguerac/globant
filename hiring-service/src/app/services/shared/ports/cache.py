@@ -1,0 +1,6 @@
+from typing import Protocol
+
+
+class CachePort(Protocol):
+    async def delete(self, *, key: str | list[str]) -> None: ...
+    async def set_json(self, *, key: str, value: dict | list, ttl: int | None = None) -> None: ...

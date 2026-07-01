@@ -1,0 +1,40 @@
+services:
+  develop:
+    build:
+      context: .devcontainer
+      dockerfile: Dockerfile
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+    command: sleep infinity
+    env_file:
+      - .env
+    networks:
+      - dev-net
+
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: app_db
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - dev-net
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - dev-net
+
+volumes:
+  postgres-data:
+
+networks:
+  dev-net:
+    driver: bridge

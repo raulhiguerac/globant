@@ -1,3 +1,5 @@
+import uuid
+
 from app.core.exceptions.base import BaseError
 
 
@@ -28,4 +30,14 @@ class IngestionDbUnavailableError(BaseError):
             code="DB_UNAVAILABLE",
             cause=cause,
             http_status=503,
+        )
+
+
+class BatchNotFoundError(BaseError):
+    def __init__(self, *, batch_id: uuid.UUID):
+        super().__init__(
+            message=f"Batch {batch_id} not found",
+            code="BATCH_NOT_FOUND",
+            context={"batch_id": str(batch_id)},
+            http_status=404,
         )

@@ -21,6 +21,14 @@ class CacheClient:
             decode_responses=True,
         )
 
+    async def get_json(self, key: str) -> dict | list | None:
+        try:
+            payload = await self.client.get(key)
+            return json.loads(payload) if payload is not None else None
+        except Exception as exc:
+            log_cache_error(exc=exc, operation="get_json", key=key)
+            return None
+
     async def set_json(self, key: str, value: dict | list, ttl: int | None = None) -> None:
         try:
             payload = json.dumps(value)

@@ -12,4 +12,9 @@ COPY --from=ghcr.io/astral-sh/uv:0.5.21 /uv /uvx /usr/local/bin/
 
 RUN npm install -g pnpm
 
+RUN curl -fsSL https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-linux-x86_64.tar.gz | tar -xz -C /opt \
+    && /opt/google-cloud-sdk/install.sh --quiet --path-update=true \
+    && ln -s /opt/google-cloud-sdk/bin/gcloud /usr/local/bin/gcloud \
+    && ln -s /opt/google-cloud-sdk/bin/gsutil /usr/local/bin/gsutil
+
 WORKDIR /workspace

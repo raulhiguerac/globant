@@ -2,7 +2,7 @@
 name = "hiring-service"
 version = "0.1.0"
 description = "Microservice"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "fastapi[standard]>=0.115.0",
     "pydantic>=2.10.0",
@@ -12,6 +12,9 @@ dependencies = [
     "psycopg2-binary>=2.9.10",
     "redis>=5.2.0",
     "uvicorn>=0.32.0",
+    "duckdb>=1.5.4",
+    "boto3>=1.43.38",
+    "google-cloud-storage>=3.12.0",
 ]
 
 [project.optional-dependencies]
@@ -25,3 +28,4 @@ dev = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+pythonpath = ["src"]

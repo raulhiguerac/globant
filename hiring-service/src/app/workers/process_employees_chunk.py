@@ -17,11 +17,6 @@ from app.services.shared.ports.storage import StoragePort
 
 logger = get_logger(__name__)
 
-METRICS_CACHE_KEYS = [
-    "hiring:metrics:hires_by_quarter",
-    "hiring:metrics:departments_above_mean",
-]
-
 
 class ProcessEmployeesChunkWorker:
     def __init__(self, *, uow: UnitOfWork, cache_client: CachePort, storage: StoragePort):
@@ -30,14 +25,17 @@ class ProcessEmployeesChunkWorker:
         self.storage = storage
 
     async def run(self, *, batch_id: uuid.UUID, records: list[EmployeeRecord]) -> list[str]:
+        logger.debug("run bulk_insert", extra={"batch_id": str(batch_id), "count": len(records)})
         try:
             await run_in_threadpool(
                 partial(self.uow.employees.bulk_insert, records=records, batch_id=batch_id)
             )
             await self.uow.commit()
+            logger.debug("run bulk_insert committed", extra={"batch_id": str(batch_id), "count": len(records)})
             return []
         except OperationalError as exc:
             await self.uow.rollback()
+            logger.error("run bulk_insert operational error", extra={"batch_id": str(batch_id)}, exc_info=exc)
             raise translate_db_error(exc) from exc
         except Exception as exc:
             await self.uow.rollback()
@@ -62,28 +60,67 @@ class ProcessEmployeesChunkWorker:
                 await self.uow.rollback_to_savepoint()
                 logger.warning(
                     "failed to insert employee",
-                    extra={"employee_id": record.id, "name": record.name},
+                    extra={"employee_id": record.id, "employee_name": record.name},
                     exc_info=exc,
                 )
                 errors.append(f"{record.id}:{record.name}")
 
         return errors
 
-    async def finalize(self, *, batch_id: uuid.UUID) -> None:
+    async def finalize(self, *, batch_id: uuid.UUID, errors: list[str]) -> None:
+        logger.info("finalize start", extra={"batch_id": str(batch_id), "errors": len(errors)})
         await run_in_threadpool(
-            partial(self.uow.batch.update_status, batch_id=batch_id, status=IngestionBatchStatus.completed)
+            partial(
+                self.uow.batch.update_status,
+                batch_id=batch_id,
+                status=IngestionBatchStatus.completed,
+                errors=errors,
+            )
         )
         await self.uow.commit()
-        await self.cache_client.delete(key=METRICS_CACHE_KEYS)
+        await self.cache_client.delete(key=settings.METRICS_CACHE_KEYS)
+        logger.info("finalize done", extra={"batch_id": str(batch_id)})
 
     async def stream_and_process(self, *, batch_id: uuid.UUID) -> None:
         key = f"employees/{batch_id}.csv"
+        logger.info("stream_and_process start", extra={"batch_id": str(batch_id), "key": key})
+
         raw_chunks: list[bytes] = []
-        async for chunk in await self.storage.stream_file(bucket=settings.STORAGE_BUCKET, key=key):
-            raw_chunks.append(chunk)
+        try:
+            async for chunk in await self.storage.stream_file(bucket=settings.STORAGE_BUCKET, key=key):
+                raw_chunks.append(chunk)
+        except Exception as exc:
+            logger.error("stream_and_process storage error", extra={"batch_id": str(batch_id)}, exc_info=exc)
+            raise
 
-        records, _ = parse_employees(b"".join(raw_chunks))
+        total_bytes = sum(len(c) for c in raw_chunks)
+        logger.info("stream_and_process downloaded", extra={"batch_id": str(batch_id), "bytes": total_bytes})
+
+        records, parse_errors = parse_employees(b"".join(raw_chunks))
+        logger.info(
+            "stream_and_process parsed",
+            extra={"batch_id": str(batch_id), "records": len(records), "parse_errors": len(parse_errors)},
+        )
+
+        all_errors: list[str] = list(parse_errors)
+        chunk_count = 0
         for i in range(0, len(records), settings.EMPLOYEE_CHUNK_SIZE):
-            await self.run(batch_id=batch_id, records=records[i : i + settings.EMPLOYEE_CHUNK_SIZE])
+            chunk = records[i : i + settings.EMPLOYEE_CHUNK_SIZE]
+            logger.info(
+                "stream_and_process running chunk",
+                extra={"batch_id": str(batch_id), "chunk": chunk_count, "size": len(chunk)},
+            )
+            chunk_errors = await self.run(batch_id=batch_id, records=chunk)
+            logger.info(
+                "stream_and_process chunk done",
+                extra={"batch_id": str(batch_id), "chunk": chunk_count, "errors": len(chunk_errors)},
+            )
+            all_errors.extend(chunk_errors)
+            chunk_count += 1
 
-        await self.finalize(batch_id=batch_id)
+        logger.info(
+            "stream_and_process finalizing",
+            extra={"batch_id": str(batch_id), "total_errors": len(all_errors)},
+        )
+        await self.finalize(batch_id=batch_id, errors=all_errors)
+        logger.info("stream_and_process complete", extra={"batch_id": str(batch_id)})

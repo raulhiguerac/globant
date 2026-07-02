@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import Column, DateTime, Enum as SAEnum, ForeignKey, Index, Integer, String, func, update
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlmodel import Field, SQLModel
 
 
@@ -26,6 +26,10 @@ class IngestionBatch(SQLModel, table=True):
     status: IngestionBatchStatus = Field(
         sa_column=Column(SAEnum(IngestionBatchStatus, name="ingestion_batch_status"), nullable=False, default=IngestionBatchStatus.pending, comment="Ingestion status")
     )
+    errors: list[str] | None = Field(
+        default=None,
+        sa_column=Column(JSONB, nullable=True, comment="Row-level errors collected during ingestion"),
+    )
     created_at: datetime = Field(
         sa_column=Column(DateTime(timezone=True), nullable=False, server_default=func.now(), comment="Timestamp when the batch was created"),
     )
@@ -33,10 +37,13 @@ class IngestionBatch(SQLModel, table=True):
 
 class AuditMixin(SQLModel):
     created_at: datetime = Field(
-        sa_column=Column(DateTime(timezone=True), nullable=False, server_default=func.now(), comment="Row creation timestamp"),
+        sa_type=DateTime(timezone=True),
+        sa_column_kwargs={"server_default": func.now(), "nullable": False, "comment": "Row creation timestamp"},
     )
     batch_id: uuid.UUID = Field(
-        sa_column=Column(UUID(as_uuid=True), ForeignKey("ingestion_batches.id"), nullable=False, comment="Ingestion batch this row belongs to"),
+        sa_type=UUID(as_uuid=True),
+        sa_column_kwargs={"nullable": False, "comment": "Ingestion batch this row belongs to"},
+        foreign_key="ingestion_batches.id",
     )
 
 

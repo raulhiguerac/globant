@@ -1,0 +1,13 @@
+SELECT
+    d.department,
+    j.job,
+    {% for q in quarters %}
+    SUM(CASE WHEN EXTRACT(MONTH FROM e.hiring_datetime) BETWEEN {{ q.month_start }} AND {{ q.month_end }} THEN 1 ELSE 0 END) AS {{ q.name }}{% if not loop.last %},{% endif %}
+
+    {% endfor %}
+FROM pg.public.employees e
+JOIN pg.public.departments d ON e.department_id = d.id
+JOIN pg.public.jobs j ON e.job_id = j.id
+WHERE EXTRACT(YEAR FROM e.hiring_datetime) = 2021
+GROUP BY d.department, j.job
+ORDER BY d.department, j.job

@@ -1,13 +1,16 @@
 ---
 title: Hiring Service — Design Overview
-status: draft
-last-verified: 2026-06-30
+status: stable
+last-verified: 2026-07-01
 sources:
   - sources/hiring-service/2026-06-30-hiring-service-design.md
   - sources/hiring-service/2026-06-30-ingestion-wiring-completion.md
+  - sources/hiring-service/2026-07-01-gcp-infra-and-cicd.md
 related:
   - adr-0001-single-commit-batch-records
   - adr-0002-multipart-vs-presigned-url
+  - metrics
+  - gcp-infra
 ---
 
 ## Overview
@@ -86,12 +89,14 @@ Applies to `IngestDepartmentsUseCase` and `IngestJobsUseCase` (employees has dif
 
 ## Pending
 
-- [ ] `GET /ingest/employees/{batch_id}/status` — polling endpoint to check `IngestionBatch.status` (pending → completed)
-- [ ] Alembic migration
-- [ ] Section 2 OLAP endpoints (DuckDB + cache)
-- [ ] docker-compose, Dockerfile
-- [ ] Tests
-- [ ] Terraform + GH Actions
+- [x] `GET /ingest/employees/{batch_id}/status` — polling endpoint to check `IngestionBatch.status`
+- [x] Alembic migration
+- [x] Section 2 OLAP endpoints (DuckDB + Redis cache) — see [[metrics]]
+- [x] docker-compose, Dockerfile (Python 3.11-slim)
+- [x] Unit tests — 49 passing (UCs, endpoints, helpers)
+- [x] Terraform + GH Actions — see [[gcp-infra]]
+- [ ] README (explicitly required by challenge)
+- [ ] Cloud Run deploy validated end-to-end
 
 ## Claims
 

@@ -1,33 +1,34 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile, status
+import uuid
+
+from fastapi import APIRouter, BackgroundTasks, Depends, File, UploadFile, status
 
 from app.api.deps.ingestion import (
+    get_batch_status_uc,
+    get_department_records,
     get_ingest_departments_uc,
     get_ingest_employees_uc,
     get_ingest_jobs_uc,
+    get_job_records,
     get_process_employees_worker,
 )
-from app.services.ingestion.helpers.csv_parser import parse_departments, parse_jobs
-from app.services.ingestion.schemas.ingestion_response import AcceptedResponse, IngestionResponse
+from app.services.ingestion.schemas.ingestion_response import AcceptedResponse, BatchStatusResponse, IngestionResponse
+from app.services.ingestion.use_cases.get_batch_status import GetBatchStatusUseCase
 from app.services.ingestion.use_cases.ingest_departments import IngestDepartmentsUseCase
 from app.services.ingestion.use_cases.ingest_employees import IngestEmployeesUseCase
 from app.services.ingestion.use_cases.ingest_jobs import IngestJobsUseCase
+from app.services.ingestion.schemas.department import DepartmentRecord
+from app.services.ingestion.schemas.job import JobRecord
 from app.workers.process_employees_chunk import ProcessEmployeesChunkWorker
 
 router = APIRouter(prefix="/ingest", tags=["ingestion"])
 
-_MAX_ROWS = 1000
-
 
 @router.post("/departments", response_model=IngestionResponse)
 async def ingest_departments(
-    file: UploadFile = File(...),
+    parsed: tuple[list[DepartmentRecord], list[str]] = Depends(get_department_records),
     uc: IngestDepartmentsUseCase = Depends(get_ingest_departments_uc),
 ) -> IngestionResponse:
-    records, parse_errors = parse_departments(await file.read())
-    if not records:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="No valid rows found")
-    if len(records) > _MAX_ROWS:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Max {_MAX_ROWS} rows per request")
+    records, parse_errors = parsed
     response = await uc.execute(records=records)
     response.errors.extend(parse_errors)
     return response
@@ -35,17 +36,21 @@ async def ingest_departments(
 
 @router.post("/jobs", response_model=IngestionResponse)
 async def ingest_jobs(
-    file: UploadFile = File(...),
+    parsed: tuple[list[JobRecord], list[str]] = Depends(get_job_records),
     uc: IngestJobsUseCase = Depends(get_ingest_jobs_uc),
 ) -> IngestionResponse:
-    records, parse_errors = parse_jobs(await file.read())
-    if not records:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="No valid rows found")
-    if len(records) > _MAX_ROWS:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Max {_MAX_ROWS} rows per request")
+    records, parse_errors = parsed
     response = await uc.execute(records=records)
     response.errors.extend(parse_errors)
     return response
+
+
+@router.get("/employees/{batch_id}/status", response_model=BatchStatusResponse)
+async def get_batch_status(
+    batch_id: uuid.UUID,
+    uc: GetBatchStatusUseCase = Depends(get_batch_status_uc),
+) -> BatchStatusResponse:
+    return await uc.execute(batch_id=batch_id)
 
 
 @router.post("/employees", status_code=status.HTTP_202_ACCEPTED, response_model=AcceptedResponse)

@@ -3,6 +3,9 @@
   "dockerComposeFile": [
     "../docker-compose.yml"
   ],
+  "features": {
+    "ghcr.io/devcontainers/features/terraform:1.4.3": {}
+  },
   "service": "develop",
   "workspaceFolder": "/workspace",
   "forwardPorts": [8000, 5432, 6379],
@@ -11,13 +14,16 @@
       "extensions": [
         "ms-python.python",
         "ms-python.vscode-pylance",
-        "cweijan.vscode-database-client2"
+        "cweijan.vscode-database-client2",
+        "dbcode.dbcode",
+        "hashicorp.terraform"
       ]
     }
   },
   "containerEnv": {
     "PYTHONUNBUFFERED": "True",
-    "UV_LINK_MODE": "copy"
+    "UV_LINK_MODE": "copy",
+    "PYTHONPATH": "/workspace/hiring-service/src"
   },
   "remoteUser": "vscode"
 }

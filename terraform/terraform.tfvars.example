@@ -1,0 +1,6 @@
+project_id     = "project_name"
+region         = "us-central1"
+image          = "gcr.io/your-gcp-project-id/hiring-service:latest"
+db_password    = "your-db-password"
+redis_url      = "redis://default:your-password@your-host.redis-cloud.com:port"
+storage_bucket = "hiring"

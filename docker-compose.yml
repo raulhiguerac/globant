@@ -1,0 +1,57 @@
+services:
+  develop:
+    build:
+      context: .devcontainer
+      dockerfile: Dockerfile
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+    command: sleep infinity
+    env_file:
+      - .env
+    networks:
+      - dev-net
+
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: app_db
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - dev-net
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - dev-net
+
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z-cpuv1
+    container_name: minio-hiring
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_DEFAULT_BUCKETS: hiring
+    command: server --console-address ":9001" /data
+    networks:
+      - dev-net
+
+volumes:
+  postgres-data:
+  minio_data:
+
+networks:
+  dev-net:
+    driver: bridge

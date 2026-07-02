@@ -26,7 +26,7 @@ jobs:
         run: uv python install
       
       - name: Sync dependencies
-        run: uv sync 
+        run: uv sync --extra dev
       
       - name: Run unit test
         run: uv run pytest

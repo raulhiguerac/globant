@@ -90,7 +90,7 @@ FastAPI `BackgroundTasks` runs in the same process, guaranteed to complete befor
 A real queue (Celery/RQ/Cloud Tasks) gives you retries and dead-letter detection for free. Without one, two lighter mechanisms cover the gap:
 
 - `stream_and_process` wraps the whole flow in a catch-all: any exception (storage, DB, parsing, finalize) marks the batch `failed` and re-raises. Covers everything the process is alive to handle.
-- `GetBatchStatusUseCase` treats a `pending` batch older than `BATCH_TIMEOUT_SECONDS` (default 600s) as `failed` on the next poll — covers the process being killed outright (OOM, container restart) before it reaches its own `except`. 600s is deliberately generous: batches are capped at 1000 rows, so a real run finishes in seconds even with the row-by-row fallback.
+- `GetBatchStatusUseCase` treats a `pending` batch older than `BATCH_TIMEOUT_SECONDS` (default 600s) as `failed` on the next poll — covers the process being killed outright (OOM, container restart) before it reaches its own `except`. 600s is deliberately generous: at the challenge's dataset size (~2k rows) a real run finishes in seconds even with the row-by-row fallback. Note the 1000-row cap applies only to the synchronous departments/jobs endpoints — employees is uncapped and processed in 10k-row chunks.
 
 This is a heuristic, not a guarantee — it stops the client from polling forever, not a substitute for real job tracking. If ingestion volume or reliability requirements grow, this is the first thing to replace with a proper queue.
 
@@ -112,7 +112,7 @@ Things I'm aware of and chose not to fix, given the scope of this challenge:
 
 - **`stream_and_process` isn't fully streaming.** The GCS read itself is real streaming (8KB reads via `blob.open("rb")`, no full-blob download), but the worker buffers those chunks into a single in-memory `bytes` object before parsing — avoids handling CSV records split across chunk boundaries. Fine for the ~2MB challenge file; would need a real incremental CSV parser at real volume.
 - **Cache invalidation isn't guaranteed.** `CacheClient.delete()` retries twice (15s, 30s backoff) on failure, but if all three attempts fail, the stale value survives until the 8-hour TTL expires. A fully-down Redis doesn't cause this — reads degrade to a cache miss and hit DuckDB live — only an isolated failure of the delete call itself does.
-- **No authentication.** Not required by the challenge, but worth calling out since the Cloud Run deployment target would otherwise be a public, unauthenticated endpoint.
+- **No application-level authentication.** Access to the Cloud Run deployment *is* gated at the platform level — Terraform grants `roles/run.invoker` only to the explicit members in `invoker_members` (no `allUsers`), so unauthenticated requests are rejected by Cloud Run with 403 before reaching the app. What's missing is auth *inside* the API (API keys, JWT, per-endpoint authorization) — not required by the challenge, and IAM is the recommended GCP pattern for internal APIs anyway.
 - **`validate_batch` counts only valid rows against the 1000-row cap.** A CSV with 1500 rows where 600 fail parsing would pass the limit check (900 valid rows), even though the original file exceeds it.
 - **Department/job parse errors aren't persisted.** They're returned in the synchronous HTTP response but never written to `ingestion_batches.errors`, unlike the employees flow — an asymmetry between the sync and async ingestion paths.
 - **The GCS chunk read blocks the event loop.** `stream_file`'s async wrapper yields control with `asyncio.sleep(0)` between chunks, but each individual 8KB read is still a blocking call underneath — it doesn't remove the blocking I/O, just interleaves it.
@@ -231,6 +231,10 @@ APIs (Secret Manager, Cloud SQL, GCS, Cloud Run)
   → GCS bucket + Cloud SQL (Postgres 15)
   → Cloud Run (FastAPI container)
 ```
+
+**Access control**: Cloud Run is not public. Terraform grants `roles/run.invoker` only to the members listed in `invoker_members` (`terraform.tfvars`) — invoking the API requires an IAM identity token from an authorized member.
+
+**Redis is not provisioned by Terraform.** The `REDIS_URL` secret points to a [Redis Cloud](https://redis.io/cloud/) free-tier instance, created manually outside this IaC — GCP's Memorystore has no free tier, and a managed cache is overkill for a challenge. If Redis is unreachable, reads degrade to a cache miss and hit DuckDB live, so the service works without it. In a real deployment this would be a Memorystore module in Terraform.
 
 ### Deploy
 

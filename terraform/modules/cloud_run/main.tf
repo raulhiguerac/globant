@@ -1,6 +1,7 @@
 resource "google_cloud_run_v2_service" "main" {
-  name     = "hiring-service"
-  location = var.region
+  name                = "hiring-service"
+  location            = var.region
+  deletion_protection = false
 
   template {
     service_account = var.service_account_email

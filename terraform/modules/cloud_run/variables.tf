@@ -29,3 +29,8 @@ variable "secret_database_url_id" {
 variable "secret_redis_url_id" {
   type = string
 }
+
+variable "invoker_members" {
+  description = "IAM members authorized to invoke the service, or [\"allUsers\"] if public"
+  type        = list(string)
+}

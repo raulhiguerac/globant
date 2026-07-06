@@ -64,16 +64,17 @@ module "cloud_sql" {
   depends_on = [module.secret_manager]
 }
 
-# module "cloud_run" {
-#   source                    = "./modules/cloud_run"
-#   project_id                = var.project_id
-#   region                    = var.region
-#   image                     = var.image
-#   service_account_email     = google_service_account.app.email
-#   cloud_sql_connection_name = module.cloud_sql.connection_name
-#   bucket_name               = module.gcs.bucket_name
-#   secret_database_url_id    = module.secret_manager.database_url_secret_id
-#   secret_redis_url_id       = module.secret_manager.redis_url_secret_id
-#
-#   depends_on = [module.gcs, module.cloud_sql, module.secret_manager]
-# }
+module "cloud_run" {
+  source                    = "./modules/cloud_run"
+  project_id                = var.project_id
+  region                    = var.region
+  image                     = var.image
+  service_account_email     = google_service_account.app.email
+  cloud_sql_connection_name = module.cloud_sql.connection_name
+  bucket_name               = module.gcs.bucket_name
+  secret_database_url_id    = module.secret_manager.database_url_secret_id
+  secret_redis_url_id       = module.secret_manager.redis_url_secret_id
+  invoker_members           = var.invoker_members
+
+  depends_on = [module.gcs, module.cloud_sql, module.secret_manager]
+}

@@ -53,9 +53,10 @@ resource "google_cloud_run_v2_service" "main" {
   }
 }
 
-resource "google_cloud_run_v2_service_iam_member" "public" {
+resource "google_cloud_run_v2_service_iam_member" "invokers" {
+  for_each = toset(var.invoker_members)
   name     = google_cloud_run_v2_service.main.name
   location = var.region
   role     = "roles/run.invoker"
-  member   = "allUsers"
+  member   = each.value
 }

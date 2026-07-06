@@ -15,6 +15,7 @@ class SqlUnitOfWork(UnitOfWork):
         self.departments = SqlDepartmentRepository(session=session)
         self.jobs = SqlJobRepository(session=session)
         self.employees = SqlEmployeeRepository(session=session)
+        self._savepoint = None
 
     async def commit(self) -> None:
         self.session.commit()

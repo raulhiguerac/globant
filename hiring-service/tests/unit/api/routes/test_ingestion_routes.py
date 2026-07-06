@@ -8,7 +8,7 @@ from app.api.deps.ingestion import (
     get_batch_status_uc,
     get_ingest_departments_uc,
     get_ingest_employees_uc,
-    get_process_employees_worker,
+    get_process_employees_runner,
     get_ingest_jobs_uc,
 )
 from app.models.models import IngestionBatchStatus
@@ -78,11 +78,10 @@ def test_ingest_employees_202(app, client):
     mock_uc = MagicMock()
     mock_uc.execute = AsyncMock(return_value=batch_id)
 
-    mock_worker = MagicMock()
-    mock_worker.stream_and_process = AsyncMock()
+    mock_runner = AsyncMock()
 
     app.dependency_overrides[get_ingest_employees_uc] = lambda: mock_uc
-    app.dependency_overrides[get_process_employees_worker] = lambda: mock_worker
+    app.dependency_overrides[get_process_employees_runner] = lambda: mock_runner
 
     resp = client.post("/v1/ingest/employees", files={"file": ("e.csv", BytesIO(_EMP_CSV), "text/csv")})
 

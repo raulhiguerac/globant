@@ -1,4 +1,4 @@
-name: Run unit test
+name: Run test
 
 on:
   pull_request:
@@ -29,4 +29,8 @@ jobs:
         run: uv sync --extra dev
       
       - name: Run unit test
-        run: uv run pytest
+        run: uv run pytest tests/unit
+      
+      - name: Run integration test
+        timeout-minutes: 10
+        run: uv run pytest tests/integration

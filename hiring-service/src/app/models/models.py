@@ -10,6 +10,7 @@ from sqlmodel import Field, SQLModel
 class IngestionBatchStatus(str, enum.Enum):
     pending = "pending"
     completed = "completed"
+    failed = "failed"
 
 
 class IngestionBatch(SQLModel, table=True):

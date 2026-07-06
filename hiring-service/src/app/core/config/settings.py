@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     # Workers
     EMPLOYEE_CHUNK_SIZE: int = int(os.getenv("EMPLOYEE_CHUNK_SIZE", "10000"))
 
+    # Batches stuck in "pending" past this many seconds are presumed dead (worker crashed
+    # before it could mark them failed) and reported as failed on the next status poll.
+    BATCH_TIMEOUT_SECONDS: int = int(os.getenv("BATCH_TIMEOUT_SECONDS", "600"))
+
     # Cache keys invalidated on employee ingestion (Section 2 OLAP endpoints)
     METRICS_CACHE_KEYS: list[str] = [
         "hiring:metrics:hires_by_quarter",

@@ -1,12 +1,14 @@
 ---
 title: Hiring Service — Metrics Domain (Section 2)
 status: stable
-last-verified: 2026-07-01
+last-verified: 2026-07-05
 sources:
   - sources/hiring-service/2026-07-01-gcp-infra-and-cicd.md
   - sources/hiring-service/2026-07-01-readme-diagram-finalization.md
+  - sources/hiring-service/2026-07-05-ingestion-robustness-hardening.md
 related:
   - hiring-service-design
+  - adr-0003-background-worker-session-and-failure-detection
 ---
 
 ## Overview
@@ -64,10 +66,17 @@ CTE pattern: `dept_hires` (count per department for 2021) → `mean_hires` (AVG)
 
 - **Port**: `AnalyticsDb` (Protocol) with `query(sql: str) -> list[dict]`
 - **Adapter**: `DuckDbAdapter` wraps `DuckDbClient` from `integrations/duckdb/client.py`
+- `DuckDbClient` is a `@lru_cache` singleton (see `deps/metrics.py::_analytics_db`) — the `ATTACH` to Postgres happens once, on first use, for the lifetime of the process.
+- `DuckDbClient.query()` self-heals from a broken `ATTACH` (e.g. Postgres restarted after the connection was established): on any exception it reconnects (re-runs `INSTALL`/`LOAD`/`ATTACH` via `_connect()`) and retries the query once before propagating. Without this, a Postgres restart would permanently 503 all metrics endpoints until the whole service restarted.
 
 ## Cache Invalidation
 
-`ProcessEmployeesChunkWorker.finalize()` deletes both cache keys after every successful employee ingestion to keep metrics fresh.
+`ProcessEmployeesChunkWorker` calls `finalize_batch` (in `workers/helpers/batch_status.py`) after every successful employee ingestion, which deletes both cache keys to keep metrics fresh.
+
+- `CacheClient.delete()` retries with a 15s/30s backoff before giving up — covers isolated/transient failures of the delete call itself.
+- This does **not** help if Redis is fully down: reads (`get_json`) already degrade gracefully to a cache miss (falls through to a live DuckDB query), so a full Redis outage never serves stale data, just slower (uncached) responses.
+- What the retry *does* cover: Redis is reachable for reads but the specific `delete` call fails transiently. Without the retry, the stale pre-ingestion value would keep being served by `get_json` until the 8h TTL naturally expires.
+- The 8h `METRICS_CACHE_TTL` remains the hard ceiling on staleness even if all delete retries are exhausted.
 
 ## Claims
 
@@ -76,3 +85,5 @@ CTE pattern: `dept_hires` (count per department for 2021) → `mean_hires` (AVG)
 - `METRICS_CACHE_TTL = 28800` seconds (8 hours).
 - Cache invalidation happens in `finalize()`, not in `run()` — only after all chunks complete.
 - `departments` and `jobs` ingest endpoints do **not** invalidate the metrics cache. Both metrics queries read `hired_employees` (with JOINs to departments/jobs as reference data) — only employee data changes affect query results, so only the employee worker needs to invalidate.
+- `DuckDbClient.query()` reconnects and retries exactly once on failure — a second consecutive failure propagates as `AnalyticsUnavailableError` (503).
+- `CacheClient.delete()` retries at 15s then 30s (two retries, three total attempts) before logging and giving up.

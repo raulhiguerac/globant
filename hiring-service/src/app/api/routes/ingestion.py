@@ -1,4 +1,5 @@
 import uuid
+from collections.abc import Awaitable, Callable
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, UploadFile, status
 
@@ -9,7 +10,7 @@ from app.api.deps.ingestion import (
     get_ingest_employees_uc,
     get_ingest_jobs_uc,
     get_job_records,
-    get_process_employees_worker,
+    get_process_employees_runner,
 )
 from app.services.ingestion.schemas.ingestion_response import AcceptedResponse, BatchStatusResponse, IngestionResponse
 from app.services.ingestion.use_cases.get_batch_status import GetBatchStatusUseCase
@@ -18,7 +19,6 @@ from app.services.ingestion.use_cases.ingest_employees import IngestEmployeesUse
 from app.services.ingestion.use_cases.ingest_jobs import IngestJobsUseCase
 from app.services.ingestion.schemas.department import DepartmentRecord
 from app.services.ingestion.schemas.job import JobRecord
-from app.workers.process_employees_chunk import ProcessEmployeesChunkWorker
 
 router = APIRouter(prefix="/ingest", tags=["ingestion"])
 
@@ -58,8 +58,8 @@ async def ingest_employees(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     uc: IngestEmployeesUseCase = Depends(get_ingest_employees_uc),
-    worker: ProcessEmployeesChunkWorker = Depends(get_process_employees_worker),
+    runner: Callable[..., Awaitable[None]] = Depends(get_process_employees_runner),
 ) -> AcceptedResponse:
     batch_id = await uc.execute(stream=file.file)
-    background_tasks.add_task(worker.stream_and_process, batch_id=batch_id)
+    background_tasks.add_task(runner, batch_id=batch_id)
     return AcceptedResponse(batch_id=batch_id)

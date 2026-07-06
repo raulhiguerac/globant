@@ -31,3 +31,8 @@ variable "storage_bucket" {
   type        = string
   default     = "hiring"
 }
+
+variable "invoker_members" {
+  description = "IAM members authorized to invoke the service, or [\"allUsers\"] if public"
+  type        = list(string)
+}
